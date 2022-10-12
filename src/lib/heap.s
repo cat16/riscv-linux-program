@@ -7,7 +7,7 @@
 .equ align_imask,   0b111
 .equ align_mask,    ~align_imask
 
-.equ used_mask,     0b001
+.equ prev_used,     0b001
 .equ size_mask,     align_mask
 
 # block node
@@ -36,13 +36,15 @@ heap_oom:
 .section .data
 
 .align 4
-.equ heap_start, 0
-.equ heap_first_free, 8 # matches fb_next
-.equ heap_end, 16
-.global heap_info       # for testing only
+.global heap_info           # global for testing only
+.equ heap_last_used,    0   # last free block will set this
+.equ heap_first_free,   8   # matches fb_next
+.equ heap_start,        16
+.equ heap_end,          24
 heap_info:
-    .dword __global_pointer$
     .dword 0
+    .dword 0
+    .dword __global_pointer$
     .dword 0
 
 
@@ -72,23 +74,23 @@ heap_init:
     li      a0, 0
     jal     brk
     andi    a0, a0, align_mask
-    sub     t2, a0, t1      # size = end - start (t2)
+    sub     t2, a0, t1          # size = end - start (t2)
     li      t3, sizeof_fb
-    bgeu    t2, t3, 0f      # check if enough mem to start
+    bgeu    t2, t3, 0f          # check if enough mem to start
 
     move    a1, a0
     add     a0, t1, t3
-    jal     brk_or_panic    # if not, get more
-    sub     t2, a0, t1      # recalc size (t2)
+    jal     brk_or_panic        # if not, get more
+    sub     t2, a0, t1          # recalc size (t2)
 0:
     sd      a0, heap_end(t0)
 
     # create initial free block
 
-    ori     t2, t2, 0x1     # add prev used
-    sd      t2, bsize(t1)   # store size
-    sd      t0, fb_next(t1) # store next
-    sd      t1, -8(a0)      # store addr at end
+    ori     t2, t2, prev_used   # add prev used
+    sd      t2, bsize(t1)       # store size
+    sd      t0, fb_next(t1)     # store next
+    sd      t1, -8(a0)          # store addr at end
 
     sd      t1, heap_first_free(t0)
 
@@ -149,10 +151,9 @@ heap_alloc:
     jal     brk_or_panic        # set heap end (a0)
     sd      a0, heap_end(t3)    # update end in info
     sub     t2, a0, t1          # new free space (t2)
-    andi    t5, t2, 1           # prev used bit
+    andi    t5, t2, prev_used   # prev used bit
     sd      t5, bsize(t1)       # update size
     sd      t3, fb_next(t1)     # update next (for case 3)
-
 0:
 
     # deal with extra free space
@@ -165,7 +166,7 @@ heap_alloc:
     sd      t3, fb_next(t6)     # set prev block next to new
     add     t6, t3, t5          # store addr at end
     sd      t3, -8(t6)
-    ori     t6, t5, 1           # store size with prev in use
+    ori     t6, t5, prev_used   # store size with prev in use
     sd      t6, bsize(t3)
     ld      t6, fb_next(t1)     # copy next
     sd      t6, fb_next(t3)
@@ -178,14 +179,14 @@ heap_alloc:
     add     t3, t1, t0
     beq     t3, t4, 1f          # if this is not at the end
     ld      t4, bsize(t3)       # set next's prev used to 1
-    ori     t4, t4, 1
+    ori     t4, t4, prev_used
     sd      t4, bsize(t3)
 1:
 
     # create used block
 
     add     t2, t0, t1          # end of block
-    ori     t0, t0, 1           # prev used bit
+    ori     t0, t0, prev_used   # prev used bit
     sd      t0, bsize(t1)       # store size
     sd      zero, fb_next(t1)   # remove free block stuff
     sd      zero, -8(t2)

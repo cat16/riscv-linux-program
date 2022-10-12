@@ -1,13 +1,18 @@
 .section .rodata
 
-.word 0f - print_msg
-print_msg:
-    .string "Current heap:"
+.word 0f - hinfo_msg
+hinfo_msg:
+    .string "Current heap info:"
+0:
+
+.word 0f - block_msg
+block_msg:
+    .string "Current heap blocks:"
 0:
 
 .word 0f - dots
 dots:
-    .string "................"
+    .string "..."
 0:
 
 .word 0f - hexstr
@@ -73,19 +78,57 @@ heap_test:
     ret
 
 print_heap:
-    addi    sp, sp, -(3*8)
+    addi    sp, sp, -(4*8)
     sd      ra, 0(sp)
     sd      s0, 8(sp)
     sd      s1, 16(sp)
+    sd      s2, 24(sp)
 
-    la      a0, print_msg
+    # info
+
+    la      a0, hinfo_msg
+    lw      a1, -4(a0)
+    jal     print
+    jal     print_space
+
+    la      a0, hexstr
+    lw      a1, -4(a0)
+    jal     print
+
+    la      s0, heap_info
+    move    a0, s0
+    jal     print_hex
+    jal     printnl
+
+    li      s1, 0
+    li      s2, 4
+0:
+    beq     s1, s2, 0f
+    jal     print_space
+    jal     print_space
+    li      t1, 8
+    mul     t0, s1, t1
+    add     t0, s0, t0
+    ld      a0, 0(t0)
+    jal     print_hex
+    jal     printnl
+    addi    s1, s1, 1
+    j       0b
+0:
+
+    # blocks
+
+    la      a0, block_msg
     lw      a1, -4(a0)
     jal     println
 
     la      t0, heap_info
-    ld      s0, 0(t0)
-    ld      s1, 16(t0)
+    ld      s0, 16(t0)
+    ld      s1, 24(t0)
 0:
+    jal     print_space
+    jal     print_space
+
     la      a0, hexstr
     lw      a1, -4(a0)
     jal     print
@@ -121,5 +164,6 @@ print_heap:
     ld      ra, 0(sp)
     ld      s0, 8(sp)
     ld      s1, 16(sp)
-    addi    sp, sp, +(3*8)
+    ld      s2, 24(sp)
+    addi    sp, sp, +(4*8)
     ret

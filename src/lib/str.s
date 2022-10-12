@@ -27,11 +27,10 @@ strlen:
 strcpy:
 0:
     lb      t0, (a1)
-    beqz    t0, 0f
     sb      t0, (a0)
+    beqz    t0, 0f
     addi    a0, a0, 1
     addi    a1, a1, 1
     j       0b
 0:
-    sb      t0, (a0)
     ret
