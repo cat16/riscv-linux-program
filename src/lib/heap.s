@@ -169,6 +169,8 @@ heap_alloc:
     li      t4, sizeof_fb
     bltu    t5, t4, 0f          # check if enough for a free block
 
+    # add free block at end if space
+
     add     t3, t1, t0          # if so, get addr (t3)
     sd      t3, fb_next(t6)     # set prev block next to new
     add     t6, t3, t5          # store addr at end
@@ -179,6 +181,9 @@ heap_alloc:
     sd      t6, fb_next(t3)
     move    t5, t3
     j       1f
+
+    # fill space completely if not enough left
+
 0:                              # if no space, fill in with used
     move    t0, t2
     ld      t4, fb_next(t1)
@@ -187,8 +192,11 @@ heap_alloc:
     add     t5, t1, t0
     bne     t5, t4, 1f          # if this is at the end
     move    t5, t3              # select the heap info for next
-1:                              # either way
-    ld      t4, binfo(t5)       # set next's prev used to 1
+1:
+
+    # update next's prev used
+
+    ld      t4, binfo(t5)
     ori     t4, t4, prev_used
     sd      t4, binfo(t5)
 
@@ -244,7 +252,7 @@ heap_free:
 1:                              # if not end:
     ld      t2, binfo(t2)
     andi    t2, t2, prev_used   # t2 = next used (n->n->pu)
-    bnez    t2, 0f              # if next not used:
+    bnez    t2, 0f              # skip if used
 2:                              # as long as not skipped:
     add     t0, t0, t1          # add to size
 0:
@@ -259,6 +267,13 @@ heap_free:
     sd      a0, fb_next(t3)
     add     t1, a0, t0          # get next addr
     sd      a0, -8(t1)          # store addr at end
+
+    add     t1, a0, t0          # get next
+    bne     t1, t4, 0f          # if end
+    li      t1, 0               # unset heap end used
+    sd      t1, binfo(t3)
+0:
+
     ret
 
 # args:
