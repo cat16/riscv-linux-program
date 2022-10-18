@@ -39,6 +39,10 @@ heap_test:
 
     # put stuff on heap
 
+    li      a0, 8*9
+    jal     heap_alloc
+
+
     li      a0, 8*4
     jal     heap_alloc
     li      t0, 0x1111111111111111
