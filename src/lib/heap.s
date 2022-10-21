@@ -60,11 +60,6 @@ heap_oom:
     .string "Heap ran out of memory!\n"
 0:
 
-.word 0f - heap_neg_size
-heap_neg_size:
-    .string "Negative size given to alloc!\n"
-0:
-
 .section .data
 
 .align 3
@@ -150,12 +145,6 @@ heap_init:
 heap_alloc:
     addi    sp, sp, -8
     sd      ra, 0(sp)
-
-    bgez    a0, 0f              # panic if negative size
-    la      a0, heap_neg_size
-    lw      a1, -4(a0)
-    j       panic
-0:
 
     # align size properly (t0)
 
