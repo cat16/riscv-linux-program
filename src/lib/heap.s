@@ -13,12 +13,13 @@
 # block node
 
 .equ binfo, 0
-.equ fb_next, 8     # free only
+.equ fb_prev, 8     # free only
+.equ fb_next, 16    # free only
 # free also contains its address at the end
 
 # sizes of metadata
 
-.equ sizeof_fb, (8*3 + align_imask) & align_mask
+.equ sizeof_fb, (8*4 + align_imask) & align_mask
 .equ sizeof_ub, (8*1 + align_imask) & align_mask
 
 .equ PAGE_SIZE, 4096
@@ -39,10 +40,12 @@ heap_oom:
 .global heap_info           # global for testing only
 .equ heap_last_used,    0   # is the last block used;
                             # matches binfo
-.equ heap_first_free,   8   # matches fb_next
-.equ heap_start,        16
-.equ heap_end,          24
+.equ heap_last_free,    8   # matches fb_prev
+.equ heap_first_free,   16  # matches fb_next
+.equ heap_start,        24
+.equ heap_end,          32
 heap_info:
+    .dword 0
     .dword 0
     .dword 0
     .dword __global_pointer$
@@ -91,9 +94,11 @@ heap_init:
     ori     t2, t2, prev_used   # add prev used
     sd      t2, binfo(t1)       # store size
     sd      t0, fb_next(t1)     # store next
+    sd      t0, fb_prev(t1)     # store prev
     sd      t1, -8(a0)          # store addr at end
 
     sd      t1, heap_first_free(t0)
+    sd      t1, heap_last_free(t0)
 
     ld      ra, 0(sp)
     addi    sp, sp, +8
@@ -159,7 +164,7 @@ heap_alloc:
     sub     t2, a0, t1          # new free space (t2)
     andi    t5, t2, prev_used   # prev used bit
     sd      t5, binfo(t1)       # update size
-    sd      t3, fb_next(t1)     # update next (for case 3)
+    sd      t3, fb_next(t1)     # update next (for 3b)
 0:
 
     # step 2:
@@ -169,7 +174,7 @@ heap_alloc:
     li      t4, sizeof_fb
     bltu    t5, t4, 0f          # check if enough for a free block
 
-    # add free block at end if space
+    # add free block at end of space
 
     add     t3, t1, t0          # if so, get addr (t3)
     sd      t3, fb_next(t6)     # set prev block next to new
@@ -179,6 +184,7 @@ heap_alloc:
     sd      t6, binfo(t3)
     ld      t6, fb_next(t1)     # copy next
     sd      t6, fb_next(t3)
+    sd      t3, fb_prev(t6)     # set next block prev to new
     move    t5, t3
     j       1f
 
@@ -188,17 +194,18 @@ heap_alloc:
     move    t0, t2
     ld      t4, fb_next(t1)
     sd      t4, fb_next(t6)     # set prev next to cur next
+    sd      t6, fb_prev(t4)     # set next prev to cur prev
     ld      t4, heap_end(t3)
     add     t5, t1, t0
     bne     t5, t4, 1f          # if this is at the end
     move    t5, t3              # select the heap info for next
-1:
 
     # update next's prev used
 
     ld      t4, binfo(t5)
     ori     t4, t4, prev_used
     sd      t4, binfo(t5)
+1:
 
     # step 3:
     # create used block
@@ -220,11 +227,14 @@ heap_alloc:
 # a0 - address
 .global heap_free
 heap_free:
+    addi    a0, a0, -8          # get actual block addr
     ld      t2, binfo(a0)
     andi    t0, t2, size_mask   # t0 = size
 
     la      t3, heap_info       # t3 = heap info
-    sd      t4, heap_end(t3)    # t4 = heap end
+    ld      t4, heap_end(t3)    # t4 = heap end
+
+    li      t5, 0               # merged flag
 
     # step 1:
     # merge with prev if possible
@@ -235,6 +245,7 @@ heap_free:
     ld      t2, binfo(a0)
     andi    t1, t2, size_mask   # t1 = prev size
     add     t0, t0, t1          # add to size
+    li      t5, 1               # set merged flag
 0:
 
     # step 2:
@@ -244,17 +255,28 @@ heap_free:
     bge     t2, t4, 0f          # skip if end
     ld      t1, binfo(t2)
     andi    t1, t1, size_mask   # t1 = next size
-    add     t2, t2, t1          # t2 = next next block
-    blt     t2, t4, 1f          # if end:
-    ld      t2, binfo(t3)       # t2 = last block is used
-    bnez    t2, 0f              # skip if used
+    add     t6, t2, t1          # t6 = next next block
+    blt     t6, t4, 1f          # if end:
+    ld      t6, binfo(t3)       # t6 = last block is used
+    bnez    t6, 0f              # skip if used
     j       2f                  # if end free, we can use
 1:                              # if not end:
-    ld      t2, binfo(t2)
-    andi    t2, t2, prev_used   # t2 = next used (n->n->pu)
-    bnez    t2, 0f              # skip if used
+    ld      t6, binfo(t6)
+    andi    t6, t6, prev_used   # t6 = next is used (n->n->pu)
+    bnez    t6, 0f              # skip if used
 2:                              # as long as not skipped:
     add     t0, t0, t1          # add to size
+    ld      t6, fb_next(t2)
+    sd      t6, fb_next(a0)     # update our next
+    sd      a0, fb_prev(t6)     # update next next's prev
+
+    bnez    t5, 3f              # if not merged:
+    ld      t6, fb_prev(t2)
+    sd      t6, fb_prev(a0)     # update our prev
+    sd      a0, fb_next(t6)     # update prev's next
+3:
+
+    li      t5, 1               # set merged flag
 0:
 
     # step 3:
@@ -262,9 +284,14 @@ heap_free:
 
     ori     t1, t0, prev_used   # set prev used
     sd      t1, binfo(a0)       # store info
-    ld      t2, fb_next(t3)     # insert at head of free list
-    sd      t2, fb_next(a0)
-    sd      a0, fb_next(t3)
+
+    bnez    t5, 0f              # skip insertion if merged
+    ld      t2, fb_next(t3)     # insert at head of free list:
+    sd      t2, fb_next(a0)     # this next
+    sd      a0, fb_next(t3)     # table next
+    sd      a0, fb_prev(t2)     # next prev
+    sd      t3, fb_prev(a0)     # this prev
+0:
     add     t1, a0, t0          # get next addr
     sd      a0, -8(t1)          # store addr at end
 
@@ -272,7 +299,12 @@ heap_free:
     bne     t1, t4, 0f          # if end
     li      t1, 0               # unset heap end used
     sd      t1, binfo(t3)
-0:
+    j       1f
+0:                              # if not end
+    ld      t2, binfo(t1)       # unset next prev used
+    andi    t2, t2, ~prev_used
+    sd      t2, binfo(t1)
+1:
 
     ret
 
