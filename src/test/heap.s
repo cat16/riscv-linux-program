@@ -27,7 +27,7 @@ hexstr:
 
 .global heap_test
 heap_test:
-    addi    sp, sp, -(7*8)
+    addi    sp, sp, -(8*8)
     sd      ra, 0(sp)
     sd      s0, 8(sp)
     sd      s1, 16(sp)
@@ -35,6 +35,7 @@ heap_test:
     sd      s3, 32(sp)
     sd      s4, 40(sp)
     sd      s5, 48(sp)
+    sd      s6, 56(sp)
 
     # empty heap
 
@@ -43,7 +44,7 @@ heap_test:
 
     # put stuff on heap
 
-    li      a0, 8*9
+    li      a0, 8*1
     jal     heap_alloc
     move    s2, a0
 
@@ -60,7 +61,7 @@ heap_test:
 
     # put array of stuff on heap
 
-    li      s0, 0x0a
+    li      s0, 0x04
 0:
     bltz    s0, 0f
 
@@ -92,6 +93,8 @@ heap_test:
 
     move    a0, s2
     jal     heap_free
+    jal     print_heap
+    jal     printnl
     move    a0, s3
     jal     heap_free
     move    a0, s4
@@ -104,11 +107,12 @@ heap_test:
     ld      ra, 0(sp)
     ld      s0, 8(sp)
     ld      s1, 16(sp)
-    sd      s2, 24(sp)
-    sd      s3, 32(sp)
-    sd      s4, 40(sp)
-    sd      s5, 48(sp)
-    addi    sp, sp, +(7*8)
+    ld      s2, 24(sp)
+    ld      s3, 32(sp)
+    ld      s4, 40(sp)
+    ld      s5, 48(sp)
+    ld      s6, 56(sp)
+    addi    sp, sp, +(8*8)
     ret
 
 print_heap:

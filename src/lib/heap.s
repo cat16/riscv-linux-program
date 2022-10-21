@@ -2,6 +2,32 @@
 # It's slow / unoptimized, and only for
 # learning how to set up a basic heap
 
+# It's also very messy due to trying to
+# avoiding the usage of s registers;
+# the point is to improve performance,
+# because you don't need extra read & writes,
+# which is pretty pointless because this
+# is not optimized to be scalable anyways.
+# This makes debugging it very fun :)
+
+# If I were to write this in a sane way,
+# I would break up certain parts into functions.
+# For example, free would create a new block
+# from the old block first, then merge with
+# either side using functions.
+
+# Unfortunately, I am not sane.
+
+# Also, I tried to allow for memory up to
+# 0xffffffffffffffff at some points,
+# which of course won't happen anyways
+# because of the stack and the fact that
+# that address probably won't even exist
+# in virtual memory, but not at other points,
+# so if you happen to not have a stack and
+# the heap gets there, things are prolly
+# gonna break due to unsigned comparisons :)
+
 # mask and imask are used to floor & ceil
 # to get correct bounds
 .equ align_imask,   0b111
@@ -34,9 +60,14 @@ heap_oom:
     .string "Heap ran out of memory!\n"
 0:
 
+.word 0f - heap_neg_size
+heap_neg_size:
+    .string "Negative size given to alloc!\n"
+0:
+
 .section .data
 
-.align 4
+.align 3
 .global heap_info           # global for testing only
 .equ heap_last_used,    0   # is the last block used;
                             # matches binfo
@@ -78,9 +109,11 @@ heap_init:
     li      a0, 0
     jal     brk
     andi    a0, a0, align_mask
+    blt     a0, t1, 1f
     sub     t2, a0, t1          # size = end - start (t2)
     li      t3, sizeof_fb
     bgeu    t2, t3, 0f          # check if enough mem to start
+1:
 
     move    a1, a0
     add     a0, t1, t3
@@ -104,6 +137,10 @@ heap_init:
     addi    sp, sp, +8
     ret
 
+# TODO: this shouldn't panic if it fails;
+#       instead return null I guess
+#       or maybe return status in a1?
+
 # args:
 # a0 - size
 #
@@ -114,12 +151,25 @@ heap_alloc:
     addi    sp, sp, -8
     sd      ra, 0(sp)
 
+    bgez    a0, 0f              # panic if negative size
+    la      a0, heap_neg_size
+    lw      a1, -4(a0)
+    j       panic
+0:
+
     # align size properly (t0)
 
     move    t0, a0
     addi    t0, t0, sizeof_ub
     addi    t0, t0, align_imask
     andi    t0, t0, align_mask
+
+    # increase size if smaller than free block
+
+    li      t1, sizeof_fb
+    bge     t0, t1, 0f
+    move    t0, t1
+0:
 
     # step 1:
     # get a free block that will fit (t1)
@@ -252,11 +302,11 @@ heap_free:
     # merge with next if possible
 
     add     t2, a0, t0          # t2 = next block
-    bge     t2, t4, 0f          # skip if end
+    bgeu    t2, t4, 0f          # skip if end
     ld      t1, binfo(t2)
     andi    t1, t1, size_mask   # t1 = next size
     add     t6, t2, t1          # t6 = next next block
-    blt     t6, t4, 1f          # if end:
+    bltu    t6, t4, 1f          # if end:
     ld      t6, binfo(t3)       # t6 = last block is used
     bnez    t6, 0f              # skip if used
     j       2f                  # if end free, we can use
