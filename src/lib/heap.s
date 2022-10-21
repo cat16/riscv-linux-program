@@ -224,6 +224,8 @@ heap_alloc:
     ld      t6, fb_next(t1)     # copy next
     sd      t6, fb_next(t3)
     sd      t3, fb_prev(t6)     # set next block prev to new
+    ld      t6, fb_prev(t1)     # copy prev
+    sd      t6, fb_prev(t3)
     move    t5, t3
     j       1f
 

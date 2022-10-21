@@ -27,15 +27,16 @@ hexstr:
 
 .global heap_test
 heap_test:
-    addi    sp, sp, -(8*8)
+    addi    sp, sp, -(9*8)
     sd      ra, 0(sp)
     sd      s0, 8(sp)
-    sd      s1, 16(sp)
-    sd      s2, 24(sp)
-    sd      s3, 32(sp)
-    sd      s4, 40(sp)
-    sd      s5, 48(sp)
-    sd      s6, 56(sp)
+    sd      s1, 2*8(sp)
+    sd      s2, 3*8(sp)
+    sd      s3, 4*8(sp)
+    sd      s4, 5*8(sp)
+    sd      s5, 6*8(sp)
+    sd      s6, 7*8(sp)
+    sd      s7, 8*8(sp)
 
     # empty heap
 
@@ -76,6 +77,16 @@ heap_test:
     j       0b
 0:
 
+    # put more stuff
+
+    li      a0, 1
+    jal     heap_alloc
+    move    s6, a0
+
+    li      a0, 8*1
+    jal     heap_alloc
+    move    s7, a0
+
     li      a0, 8*7
     jal     heap_alloc
     li      t0, 0xffff
@@ -91,28 +102,48 @@ heap_test:
 
     # free stuff
 
-    move    a0, s2
+    move    a0, s2      # no merge
     jal     heap_free
+    move    a0, s3      # merge backwards
+    jal     heap_free
+    move    a0, s4      # no merge
+    jal     heap_free
+    move    a0, s5      # merge forwards
+    jal     heap_free
+    move    a0, s6      # no merge
+    jal     heap_free
+    move    a0, s7      # merge both f & b
+    jal     heap_free
+
     jal     print_heap
     jal     printnl
-    move    a0, s3
-    jal     heap_free
-    move    a0, s4
-    jal     heap_free
-    move    a0, s5
-    jal     heap_free
+
+    # allocate more stuff
+
+    li      a0, 8       # initial test
+    jal     heap_alloc
+
+    li      a0, 15*8    # fill in end
+    jal     heap_alloc
+
+    li      a0, 9*8    # too much for front
+    jal     heap_alloc
+
+    li      a0, 1*8    # enough for front
+    jal     heap_alloc
 
     jal     print_heap
 
     ld      ra, 0(sp)
     ld      s0, 8(sp)
-    ld      s1, 16(sp)
-    ld      s2, 24(sp)
-    ld      s3, 32(sp)
-    ld      s4, 40(sp)
-    ld      s5, 48(sp)
-    ld      s6, 56(sp)
-    addi    sp, sp, +(8*8)
+    ld      s1, 2*8(sp)
+    ld      s2, 3*8(sp)
+    ld      s3, 4*8(sp)
+    ld      s4, 5*8(sp)
+    ld      s5, 6*8(sp)
+    ld      s6, 7*8(sp)
+    ld      s7, 8*8(sp)
+    addi    sp, sp, +(9*8)
     ret
 
 print_heap:
