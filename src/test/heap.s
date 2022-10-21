@@ -22,6 +22,13 @@ hexstr:
 
 
 
+# TODO: The print is really nice,
+# but this is kinda garbage because
+# it only tests what's hardcoded here.
+# Need to turn into program where you
+# can enter commands to test exactly
+# what you want.
+
 .align 2
 .section .text
 

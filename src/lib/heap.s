@@ -48,6 +48,7 @@
 .equ sizeof_fb, (8*4 + align_imask) & align_mask
 .equ sizeof_ub, (8*1 + align_imask) & align_mask
 
+# TODO: use with brk to reduce redundant calls
 .equ PAGE_SIZE, 4096
 
 
